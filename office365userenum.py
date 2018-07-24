@@ -103,7 +103,7 @@ def get_users(user_file, in_q):
         in_q.put(DIE)
 
 def report(out_q, output_file):
-    template = "[{s}] {code} {valid} {user}"
+    template = "[{s}] {code} {valid} {user}:{password}"
     symbols = {VALID_USER: "+",
             INVALID_USER: "-",
             VALID_PASSWD_2FA: "#",
@@ -128,7 +128,7 @@ def report(out_q, output_file):
                 else:
                     code = r.status_code
                 s = symbols.get(valid)
-                output = template.format(s=s, code=code, valid=valid, user=user)
+                output = template.format(s=s, code=code, valid=valid, user=user, password=password)
                 print output
                 f.write("{}\n".format(output))
                 out_q.task_done()
