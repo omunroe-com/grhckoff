@@ -177,7 +177,7 @@ if __name__ == "__main__":
     output_file = args.output
     url = args.url
     password = args.password
-    MAX_THREADS = args.threads
+    MAX_THREADS = int(args.threads)
     TIMEOUT = args.timeout
 
     threads = []
