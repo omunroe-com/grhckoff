@@ -6,7 +6,7 @@
 1                  01..   | Description:
                     ..    | Enumerate valid usernames from Office 365 using
                    ..     | ActiveSync.
-GrimHacker        ..      | Requires Python 2.7
+GrimHacker        ..      | Requires: Python 2.7, python-requests
                  ..       |
 grimhacker.com  ..        |
 @grimhacker    ..         |
@@ -29,7 +29,7 @@ office365userenum - Office 365 Username Enumerator
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 '''
 
-__version__ = "$Revision: 1.0$"
+__version__ = "$Revision: 1.1$"
 # $Source$
 
 import argparse
@@ -168,8 +168,8 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output", help="Output file (will be appended to)", required=True)
     parser.add_argument("--password", help="Password to use during enumeration. Default: {}".format(default_password), default=default_password)
     parser.add_argument("--url", help="ActiveSync URL. Default: {}".format(default_url), default=default_url)
-    parser.add_argument("--threads", help="Maximum threads. Default: {}".format(default_max_threads), default=default_max_threads)
-    parser.add_argument("--timeout", help="HTTP Timeout. Default: {}".format(default_timeout), default=default_timeout)
+    parser.add_argument("--threads", help="Maximum threads. Default: {}".format(default_max_threads), default=default_max_threads, type=int)
+    parser.add_argument("--timeout", help="HTTP Timeout. Default: {}".format(default_timeout), default=default_timeout, type=float)
 
     args = parser.parse_args()
     
@@ -177,7 +177,7 @@ if __name__ == "__main__":
     output_file = args.output
     url = args.url
     password = args.password
-    MAX_THREADS = int(args.threads)
+    MAX_THREADS = args.threads
     TIMEOUT = args.timeout
 
     threads = []
