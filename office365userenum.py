@@ -1,4 +1,6 @@
-#! /usr/bin/env python2.7
+#! /usr/bin/env python
+from __future__ import print_function
+
 '''
 .       .1111...          | Title: office365userenum.py
     .10000000000011.   .. | Author: Oliver Morton (Sec-1 Ltd)
@@ -6,7 +8,7 @@
 1                  01..   | Description:
                     ..    | Enumerate valid usernames from Office 365 using
                    ..     | ActiveSync.
-GrimHacker        ..      | Requires: Python 2.7, python-requests
+GrimHacker        ..      | Requires: Python 2.7 or 3.6, python-requests
                  ..       |
 grimhacker.com  ..        |
 @grimhacker    ..         |
@@ -29,14 +31,24 @@ office365userenum - Office 365 Username Enumerator
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 '''
 
-__version__ = "$Revision: 1.1$"
+__version__ = "$Revision: 2.0$"
 # $Source$
 
 import argparse
-import requests
 import threading
-import Queue
-from time import sleep
+import logging
+import sys
+
+try:
+    import requests
+except ImportError as e:
+    print("Missing Dependency! python-requests required!")
+    exit()
+
+if sys.version_info <= (3, 0):
+    import Queue as queue
+else:
+    import queue
 
 VALID_USER = "VALID_USER"
 INVALID_USER = "INVALID_USER"
@@ -46,6 +58,7 @@ UNKNOWN = "UNKNOWN"
 DIE = "!!!AVADA KEDAVRA!!!"
 SHUTDOWN_EVENT = threading.Event()
 
+
 def check_user(url, user, password):
     headers = {}
     headers["MS-ASProtocolVersion"] = "14.0"
@@ -53,7 +66,7 @@ def check_user(url, user, password):
     try:
         r = requests.options(url, headers=headers, auth=auth, timeout=TIMEOUT)
     except Exception as e:
-        print "error checking {} : {}".format(user, e)
+        logging.warning("error checking {} : {}".format(user, e))
         return user, UNKNOWN, None
     status = r.status_code
     if status == 401:
@@ -67,26 +80,27 @@ def check_user(url, user, password):
         return user, VALID_LOGIN, r
     return user, UNKNOWN, r
 
+
 def check_users(in_q, out_q, url, password):
     while not SHUTDOWN_EVENT.is_set():
         try:
             user = in_q.get()
-        except Queue.Empty as e:
-            #print "in_q empty"
+        except queue.Empty as e:
+            logging.debug("check_users: in_q empty")
             continue
         if user == DIE:
             in_q.task_done()
-            #print "check_users thread dying"
+            logging.debug("check_users thread dying")
             break
         else:
-            #print "checking: {}".format(user)
+            logging.debug("checking: {}".format(user))
             try:
                 result = check_user(url, user, password)
             except Exception as e:
-                print "Error checking {} : {}".format(user, e)
+                logging.warning("Error checking {} : {}".format(user, e))
                 in_q.task_done()
                 continue
-            #print result
+            logging.debug(result)
             out_q.put(result)
             in_q.task_done()
 
@@ -97,29 +111,32 @@ def get_users(user_file, in_q):
             if SHUTDOWN_EVENT.is_set():
                 break
             user = line.strip()
-            #print "user = {}".format(user)
+            logging.debug("user = {}".format(user))
             in_q.put(user)
     for _ in range(MAX_THREADS):
         in_q.put(DIE)
 
+
 def report(out_q, output_file):
     template = "[{s}] {code} {valid} {user}:{password}"
-    symbols = {VALID_USER: "+",
-            INVALID_USER: "-",
-            VALID_PASSWD_2FA: "#",
-            VALID_LOGIN: "!",
-            UNKNOWN: "?"}
+    symbols = {
+        VALID_USER: "+",
+        INVALID_USER: "-",
+        VALID_PASSWD_2FA: "#",
+        VALID_LOGIN: "!",
+        UNKNOWN: "?"
+    }
     
     with open(output_file, "a", 1) as f:
         while not SHUTDOWN_EVENT.is_set():
             try:
                 result = out_q.get()
-            except Queue.Empty as e:
-                #print "out_q empty"
+            except queue.Empty as e:
+                logging.debug("report: out_q empty")
                 continue
             if result == DIE:
                 out_q.task_done()
-                #print "report thread dying."
+                logging.debug("report thread dying.")
                 break 
             else:
                 user, valid, r = result
@@ -129,13 +146,14 @@ def report(out_q, output_file):
                     code = r.status_code
                 s = symbols.get(valid)
                 output = template.format(s=s, code=code, valid=valid, user=user, password=password)
-                print output
+                logging.info(output)
                 f.write("{}\n".format(output))
                 out_q.task_done()
 
+
 def print_version():
     """Print command line version banner."""
-    print """
+    print("""
 
 .       .1111...          | Title: office365userenum.py
     .10000000000011.   .. | Author: Oliver Morton (Sec-1 Ltd)
@@ -152,7 +170,31 @@ grimhacker.com  ..        |
     This is free software, and you are welcome to redistribute it
     under certain conditions. See GPLv2 License.
 ----------------------------------------------------------------------------
-""".format(__version__)
+""".format(__version__))
+
+
+def setup_logging(verbose=True, log_file=None):
+    """Configure logging."""
+    if log_file is not None:
+        logging.basicConfig(level=logging.DEBUG,
+                            format="%(asctime)s: %(levelname)s: %(module)s: %(message)s",
+                            filename=log_file,
+                            filemode='w')
+        console_handler = logging.StreamHandler()
+        formatter = logging.Formatter("%(levelname)s: %(module)s: %(message)s")
+        console_handler.setFormatter(formatter)
+        if verbose:
+            console_handler.setLevel(logging.DEBUG)
+        else:
+            console_handler.setLevel(logging.INFO)
+        logging.getLogger().addHandler(console_handler)
+    else:
+        if verbose:
+            level = logging.DEBUG
+        else:
+            level = logging.INFO
+        logging.basicConfig(level=level,
+                            format="%(levelname)s: %(module)s: %(message)s")
 
 
 if __name__ == "__main__":
@@ -170,8 +212,12 @@ if __name__ == "__main__":
     parser.add_argument("--url", help="ActiveSync URL. Default: {}".format(default_url), default=default_url)
     parser.add_argument("--threads", help="Maximum threads. Default: {}".format(default_max_threads), default=default_max_threads, type=int)
     parser.add_argument("--timeout", help="HTTP Timeout. Default: {}".format(default_timeout), default=default_timeout, type=float)
+    parser.add_argument("-v", "--verbose", help="Debug logging", action="store_true")
+    parser.add_argument("--logfile", help="Log File", default=None)
 
     args = parser.parse_args()
+
+    setup_logging(args.verbose, args.logfile)
     
     user_file = args.users
     output_file = args.output
@@ -185,8 +231,8 @@ if __name__ == "__main__":
     max_size = MAX_THREADS/2
     if max_size < 1:
         max_size = 1
-    in_q = Queue.Queue(maxsize=max_size)
-    out_q = Queue.Queue(maxsize=max_size)
+    in_q = queue.Queue(maxsize=max_size)
+    out_q = queue.Queue(maxsize=max_size)
 
     try:
         report_thread = threading.Thread(name="Thread-report", target=report, args=(out_q, output_file))
@@ -211,7 +257,7 @@ if __name__ == "__main__":
                 thread.join(timeout=0.1)
     
     except KeyboardInterrupt as e:
-        print "Received KeyboardInterrupt - shutting down"
+        logging.critical("Received KeyboardInterrupt - shutting down")
         SHUTDOWN_EVENT.set()
 
         for thread in threads:
@@ -221,4 +267,3 @@ if __name__ == "__main__":
         for thread in meta_threads:
             while thread.is_alive():
                 thread.join(timeout=0.1)
-
