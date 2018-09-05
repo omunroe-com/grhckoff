@@ -161,7 +161,7 @@ def print_version():
 1                  01..   | Description:
                     ..    | Enumerate valid usernames from Office 365 using
                    ..     | ActiveSync.
-GrimHacker        ..      | Requires Python 2.7
+GrimHacker        ..      | Requires: Python 2.7 or 3.6, python-requests
                  ..       |
 grimhacker.com  ..        |
 @grimhacker    ..         |
